@@ -29,6 +29,10 @@
     padding:18px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,.04);
   }
   h2{margin-top:0; font-size:1.2rem; color:var(--accent-dark);}
+  .card-header{cursor:pointer; display:flex; align-items:center; justify-content:space-between; user-select:none;}
+  .card-header .chevron{font-size:.9rem; color:var(--muted); transition:transform .2s; margin-left:10px; flex-shrink:0;}
+  .card.collapsed .card-body{display:none;}
+  .card.collapsed .card-header .chevron{transform:rotate(-90deg);}
   label{display:block; font-weight:600; margin-bottom:6px; font-size:.95rem;}
   .field{margin-bottom:16px;}
   input[type=text], input[type=number], input[type=date], textarea, select{
@@ -109,7 +113,8 @@
 <div class="container">
 
   <div class="card">
-    <h2 id="form-title">Add a bake</h2>
+    <h2 class="card-header"><span id="form-title">Add a bake</span><span class="chevron">▾</span></h2>
+    <div class="card-body">
     <form id="bake-form" novalidate>
       <input type="hidden" id="entry-id">
       <div class="field">
@@ -157,20 +162,24 @@
         <button type="button" class="btn secondary" id="cancel-edit-btn" style="display:none;">Cancel</button>
       </div>
     </form>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Summary</h2>
+    <h2 class="card-header">Summary<span class="chevron">▾</span></h2>
+    <div class="card-body">
     <div id="summary-content"></div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
   </div>
 
   <div class="card">
+    <h2 class="card-header">Entries<span class="chevron">▾</span></h2>
+    <div class="card-body">
     <div class="top-actions">
       <button class="btn secondary small" id="export-btn">Export CSV</button>
       <button class="btn secondary small" id="clear-samples-btn">Clear sample entries</button>
     </div>
-    <h2>Entries</h2>
     <div class="toolbar">
       <div class="field">
         <label for="filter-outcome">Filter by outcome</label>
@@ -215,6 +224,7 @@
         <tbody id="entries-body"></tbody>
       </table>
       <div class="empty-msg" id="empty-msg" style="display:none;">No entries yet. Add your first bake above.</div>
+    </div>
     </div>
   </div>
 
@@ -464,6 +474,7 @@ form.addEventListener('submit', (e) => {
 function startEdit(id){
   const entry = entries.find(e => e.id === id);
   if(!entry) return;
+  form.closest('.card').classList.remove('collapsed');
   editingId = id;
   dateInput.value = entry.date;
   temperatureInput.value = entry.temperature;
@@ -759,6 +770,13 @@ function renderAll(){
 }
 
 renderAll();
+
+// ----- Collapsible cards -----
+document.querySelectorAll('.card-header').forEach(header => {
+  header.addEventListener('click', () => {
+    header.closest('.card').classList.toggle('collapsed');
+  });
+});
 </script>
 </body>
 </html>
