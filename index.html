@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sourdough Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --good:#2e7d32; --good-bg:#e6f4ea;
+    --neutral:#616161; --neutral-bg:#ececeb;
+    --bad:#c62828; --bad-bg:#fdecea;
+    --accent:#6b4226; --accent-dark:#4a2c18;
+    --bg:#faf6f1; --card:#ffffff; --border:#e2d9cf; --text:#2b2420; --muted:#7a6f63;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding-bottom:40px;
+  }
+  header{
+    background:var(--accent); color:#fff; padding:20px 16px; text-align:center;
+  }
+  header h1{margin:0; font-size:1.6rem;}
+  header p{margin:6px 0 0; opacity:.85; font-size:.9rem;}
+  .container{max-width:1000px; margin:0 auto; padding:16px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:18px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  h2{margin-top:0; font-size:1.2rem; color:var(--accent-dark);}
+  label{display:block; font-weight:600; margin-bottom:6px; font-size:.95rem;}
+  .field{margin-bottom:16px;}
+  input[type=text], input[type=number], input[type=date], textarea, select{
+    width:100%; padding:12px; font-size:1rem; border:1px solid var(--border);
+    border-radius:8px; background:#fff; color:var(--text); font-family:inherit;
+  }
+  textarea{resize:vertical; min-height:70px;}
+  .outcome-buttons{display:flex; gap:10px; flex-wrap:wrap;}
+  .outcome-btn{
+    flex:1; min-width:90px; padding:14px 10px; border-radius:10px; border:2px solid var(--border);
+    background:#fff; font-size:1rem; font-weight:600; cursor:pointer; color:var(--text);
+    transition:all .15s;
+  }
+  .outcome-btn.good.selected{background:var(--good-bg); border-color:var(--good); color:var(--good);}
+  .outcome-btn.neutral.selected{background:var(--neutral-bg); border-color:var(--neutral); color:var(--neutral);}
+  .outcome-btn.bad.selected{background:var(--bad-bg); border-color:var(--bad); color:var(--bad);}
+  .error{color:var(--bad); font-size:.85rem; margin-top:4px; min-height:1.1em;}
+  .btn{
+    padding:14px 20px; border-radius:10px; border:none; font-size:1rem; font-weight:600;
+    cursor:pointer; background:var(--accent); color:#fff;
+  }
+  .btn:hover{background:var(--accent-dark);}
+  .btn.secondary{background:#fff; color:var(--accent-dark); border:2px solid var(--accent);}
+  .btn.danger{background:var(--bad); color:#fff;}
+  .btn.small{padding:8px 12px; font-size:.85rem;}
+  .form-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .toolbar{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px;}
+  .toolbar .field{margin-bottom:0; min-width:140px; flex:1;}
+  table{width:100%; border-collapse:collapse; font-size:.9rem;}
+  th, td{padding:10px 8px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap;}
+  th{color:var(--muted); font-weight:600; cursor:pointer; user-select:none;}
+  th.sorted{color:var(--accent-dark);}
+  .badge{
+    display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700;
+  }
+  .badge.good{background:var(--good-bg); color:var(--good);}
+  .badge.neutral{background:var(--neutral-bg); color:var(--neutral);}
+  .badge.bad{background:var(--bad-bg); color:var(--bad);}
+  .notes-cell{white-space:normal; max-width:220px; color:var(--muted);}
+  .row-actions{display:flex; gap:6px;}
+  .table-wrap{overflow-x:auto;}
+  .summary-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:18px;}
+  .stat{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; text-align:center;}
+  .stat .num{font-size:1.4rem; font-weight:800; color:var(--accent-dark);}
+  .stat .label{font-size:.78rem; color:var(--muted); margin-top:4px;}
+  .avg-table{width:100%; border-collapse:collapse; font-size:.88rem; margin-bottom:18px;}
+  .avg-table th, .avg-table td{padding:8px; border-bottom:1px solid var(--border); text-align:center;}
+  .avg-table th:first-child, .avg-table td:first-child{text-align:left;}
+  .chart-wrap{position:relative; height:320px;}
+  .empty-msg{color:var(--muted); text-align:center; padding:20px; font-style:italic;}
+  .modal-backdrop{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50;
+    align-items:center; justify-content:center; padding:16px;
+  }
+  .modal-backdrop.open{display:flex;}
+  .modal{background:#fff; border-radius:12px; padding:20px; max-width:360px; width:100%;}
+  .modal h3{margin-top:0;}
+  .modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:16px;}
+  .top-actions{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:10px;}
+  @media (max-width:600px){
+    table, thead, tbody, th, td, tr{display:block;}
+    thead{display:none;}
+    tbody tr{border:1px solid var(--border); border-radius:10px; margin-bottom:10px; padding:8px; background:#fff;}
+    td{border-bottom:none; display:flex; justify-content:space-between; gap:10px; white-space:normal;}
+    td::before{content:attr(data-label); font-weight:600; color:var(--muted); flex-shrink:0;}
+    .notes-cell{max-width:none;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍞 Sourdough Tracker</h1>
+  <p>Log bakes, compare fermentation conditions, find what works.</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2 id="form-title">Add a bake</h2>
+    <form id="bake-form" novalidate>
+      <input type="hidden" id="entry-id">
+      <div class="field">
+        <label for="date">Date</label>
+        <input type="date" id="date" required>
+      </div>
+      <div class="field">
+        <label for="temperature">Temperature (°C)</label>
+        <input type="number" id="temperature" step="0.1" min="0" placeholder="e.g. 24.5" required>
+        <div class="error" id="err-temperature"></div>
+      </div>
+      <div class="field">
+        <label for="water">Water (g)</label>
+        <input type="number" id="water" step="1" min="0" placeholder="e.g. 350" required>
+        <div class="error" id="err-water"></div>
+      </div>
+      <div class="field">
+        <label for="hours">Fermentation time (hours)</label>
+        <input type="number" id="hours" step="0.1" min="0" placeholder="e.g. 8.5" required>
+        <div class="error" id="err-hours"></div>
+      </div>
+      <div class="field">
+        <label>Outcome</label>
+        <div class="outcome-buttons" id="outcome-buttons">
+          <button type="button" class="outcome-btn good" data-value="good">😊 Good</button>
+          <button type="button" class="outcome-btn neutral" data-value="neutral">😐 Neutral</button>
+          <button type="button" class="outcome-btn bad" data-value="bad">☹️ Bad</button>
+        </div>
+        <div class="error" id="err-outcome"></div>
+      </div>
+      <div class="field">
+        <label for="notes">Notes (optional)</label>
+        <textarea id="notes" placeholder="Crumb, flavour, what I'd change next time..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn" id="submit-btn">Add bake</button>
+        <button type="button" class="btn secondary" id="cancel-edit-btn" style="display:none;">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Summary</h2>
+    <div id="summary-content"></div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="top-actions">
+      <button class="btn secondary small" id="export-btn">Export CSV</button>
+      <button class="btn secondary small" id="clear-samples-btn">Clear sample entries</button>
+    </div>
+    <h2>Entries</h2>
+    <div class="toolbar">
+      <div class="field">
+        <label for="filter-outcome">Filter by outcome</label>
+        <select id="filter-outcome">
+          <option value="all">All</option>
+          <option value="good">Good</option>
+          <option value="neutral">Neutral</option>
+          <option value="bad">Bad</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sort-field">Sort by</label>
+        <select id="sort-field">
+          <option value="date">Date</option>
+          <option value="temperature">Temperature</option>
+          <option value="water">Water</option>
+          <option value="hours">Fermentation hours</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sort-dir">Order</label>
+        <select id="sort-dir">
+          <option value="desc">Newest / highest first</option>
+          <option value="asc">Oldest / lowest first</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="entries-table">
+        <thead>
+          <tr>
+            <th data-field="date">Date</th>
+            <th data-field="temperature">Temp (°C)</th>
+            <th data-field="water">Water (g)</th>
+            <th data-field="hours">Hours</th>
+            <th>Outcome</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="entries-body"></tbody>
+      </table>
+      <div class="empty-msg" id="empty-msg" style="display:none;">No entries yet. Add your first bake above.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-backdrop" id="delete-modal">
+  <div class="modal">
+    <h3>Delete this entry?</h3>
+    <p>This can't be undone.</p>
+    <div class="modal-actions">
+      <button class="btn secondary" id="cancel-delete-btn">Cancel</button>
+      <button class="btn danger" id="confirm-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'sourdough-entries';
+const SAMPLE_FLAG_KEY = 'sourdough-has-samples';
+
+const outcomeLabels = { good: 'Good', neutral: 'Neutral', bad: 'Bad' };
+
+const sampleEntries = [
+  { id: 's1', date: daysAgo(6), temperature: 24.5, water: 350, hours: 8.5, outcome: 'good', notes: 'Open crumb, nice tang. Great oven spring.' },
+  { id: 's2', date: daysAgo(3), temperature: 21.0, water: 330, hours: 12.0, outcome: 'neutral', notes: 'Dense-ish, slightly under-proofed.' },
+  { id: 's3', date: daysAgo(1), temperature: 27.0, water: 360, hours: 5.0, outcome: 'bad', notes: 'Over-fermented, flat loaf, gummy crumb.' },
+];
+
+function daysAgo(n){
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0,10);
+}
+
+function todayStr(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function loadEntries(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw === null){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleEntries));
+    localStorage.setItem(SAMPLE_FLAG_KEY, 'true');
+    return [...sampleEntries];
+  }
+  try{
+    return JSON.parse(raw);
+  }catch(e){
+    return [];
+  }
+}
+
+function saveEntries(entries){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+let entries = loadEntries();
+let editingId = null;
+let selectedOutcome = null;
+let deleteTargetId = null;
+let chartInstance = null;
+
+// ----- Form -----
+const form = document.getElementById('bake-form');
+const dateInput = document.getElementById('date');
+const temperatureInput = document.getElementById('temperature');
+const waterInput = document.getElementById('water');
+const hoursInput = document.getElementById('hours');
+const notesInput = document.getElementById('notes');
+const submitBtn = document.getElementById('submit-btn');
+const cancelEditBtn = document.getElementById('cancel-edit-btn');
+const formTitle = document.getElementById('form-title');
+const outcomeButtonsWrap = document.getElementById('outcome-buttons');
+
+dateInput.value = todayStr();
+
+outcomeButtonsWrap.addEventListener('click', (e) => {
+  const btn = e.target.closest('.outcome-btn');
+  if(!btn) return;
+  selectedOutcome = btn.dataset.value;
+  [...outcomeButtonsWrap.children].forEach(b => b.classList.toggle('selected', b === btn));
+  document.getElementById('err-outcome').textContent = '';
+});
+
+function resetForm(){
+  form.reset();
+  dateInput.value = todayStr();
+  selectedOutcome = null;
+  editingId = null;
+  [...outcomeButtonsWrap.children].forEach(b => b.classList.remove('selected'));
+  ['temperature','water','hours','outcome'].forEach(f => document.getElementById('err-' + f).textContent = '');
+  formTitle.textContent = 'Add a bake';
+  submitBtn.textContent = 'Add bake';
+  cancelEditBtn.style.display = 'none';
+}
+
+cancelEditBtn.addEventListener('click', resetForm);
+
+function validatePositiveNumber(value){
+  if(value === '' || value === null) return false;
+  const n = Number(value);
+  return !isNaN(n) && n > 0;
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  let valid = true;
+
+  if(!validatePositiveNumber(temperatureInput.value)){
+    document.getElementById('err-temperature').textContent = 'Enter a positive number.';
+    valid = false;
+  } else {
+    document.getElementById('err-temperature').textContent = '';
+  }
+
+  if(!validatePositiveNumber(waterInput.value)){
+    document.getElementById('err-water').textContent = 'Enter a positive whole number.';
+    valid = false;
+  } else {
+    document.getElementById('err-water').textContent = '';
+  }
+
+  if(!validatePositiveNumber(hoursInput.value)){
+    document.getElementById('err-hours').textContent = 'Enter a positive number.';
+    valid = false;
+  } else {
+    document.getElementById('err-hours').textContent = '';
+  }
+
+  if(!selectedOutcome){
+    document.getElementById('err-outcome').textContent = 'Select an outcome.';
+    valid = false;
+  } else {
+    document.getElementById('err-outcome').textContent = '';
+  }
+
+  if(!dateInput.value){
+    valid = false;
+  }
+
+  if(!valid) return;
+
+  const entryData = {
+    date: dateInput.value,
+    temperature: Math.round(Number(temperatureInput.value) * 10) / 10,
+    water: Math.round(Number(waterInput.value)),
+    hours: Math.round(Number(hoursInput.value) * 10) / 10,
+    outcome: selectedOutcome,
+    notes: notesInput.value.trim(),
+  };
+
+  if(editingId){
+    const idx = entries.findIndex(e => e.id === editingId);
+    if(idx !== -1){
+      entries[idx] = { ...entries[idx], ...entryData };
+    }
+  } else {
+    entries.push({ id: 'e' + Date.now() + Math.random().toString(16).slice(2), ...entryData });
+  }
+
+  saveEntries(entries);
+  resetForm();
+  renderAll();
+});
+
+function startEdit(id){
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  editingId = id;
+  dateInput.value = entry.date;
+  temperatureInput.value = entry.temperature;
+  waterInput.value = entry.water;
+  hoursInput.value = entry.hours;
+  notesInput.value = entry.notes || '';
+  selectedOutcome = entry.outcome;
+  [...outcomeButtonsWrap.children].forEach(b => b.classList.toggle('selected', b.dataset.value === entry.outcome));
+  formTitle.textContent = 'Edit bake';
+  submitBtn.textContent = 'Save changes';
+  cancelEditBtn.style.display = 'inline-block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ----- Delete modal -----
+const deleteModal = document.getElementById('delete-modal');
+document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+  deleteTargetId = null;
+  deleteModal.classList.remove('open');
+});
+document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+  if(deleteTargetId){
+    entries = entries.filter(e => e.id !== deleteTargetId);
+    saveEntries(entries);
+    if(editingId === deleteTargetId) resetForm();
+    renderAll();
+  }
+  deleteTargetId = null;
+  deleteModal.classList.remove('open');
+});
+function requestDelete(id){
+  deleteTargetId = id;
+  deleteModal.classList.add('open');
+}
+
+// ----- Filter / sort -----
+const filterOutcomeSelect = document.getElementById('filter-outcome');
+const sortFieldSelect = document.getElementById('sort-field');
+const sortDirSelect = document.getElementById('sort-dir');
+filterOutcomeSelect.addEventListener('change', renderTable);
+sortFieldSelect.addEventListener('change', renderTable);
+sortDirSelect.addEventListener('change', renderTable);
+
+document.querySelectorAll('#entries-table th[data-field]').forEach(th => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.field;
+    if(sortFieldSelect.value === field){
+      sortDirSelect.value = sortDirSelect.value === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortFieldSelect.value = field;
+      sortDirSelect.value = field === 'date' ? 'desc' : 'desc';
+    }
+    renderTable();
+  });
+});
+
+function getSortedFilteredEntries(){
+  const filterVal = filterOutcomeSelect.value;
+  const sortField = sortFieldSelect.value;
+  const sortDir = sortDirSelect.value;
+
+  let list = entries.slice();
+  if(filterVal !== 'all'){
+    list = list.filter(e => e.outcome === filterVal);
+  }
+
+  list.sort((a, b) => {
+    let av = a[sortField], bv = b[sortField];
+    if(sortField === 'date'){
+      av = new Date(av).getTime();
+      bv = new Date(bv).getTime();
+    }
+    if(av < bv) return sortDir === 'asc' ? -1 : 1;
+    if(av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  return list;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderTable(){
+  const tbody = document.getElementById('entries-body');
+  const emptyMsg = document.getElementById('empty-msg');
+  const list = getSortedFilteredEntries();
+
+  document.querySelectorAll('#entries-table th[data-field]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.field === sortFieldSelect.value);
+  });
+
+  if(list.length === 0){
+    tbody.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  tbody.innerHTML = list.map(entry => `
+    <tr>
+      <td data-label="Date">${entry.date}</td>
+      <td data-label="Temp (°C)">${entry.temperature.toFixed(1)}</td>
+      <td data-label="Water (g)">${entry.water}</td>
+      <td data-label="Hours">${entry.hours.toFixed(1)}</td>
+      <td data-label="Outcome"><span class="badge ${entry.outcome}">${outcomeLabels[entry.outcome]}</span></td>
+      <td data-label="Notes" class="notes-cell">${entry.notes ? escapeHtml(entry.notes) : '<span style="color:#b3aba2;">—</span>'}</td>
+      <td data-label="Actions">
+        <div class="row-actions">
+          <button class="btn secondary small" onclick="startEdit('${entry.id}')">Edit</button>
+          <button class="btn danger small" onclick="requestDelete('${entry.id}')">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ----- Summary -----
+function renderSummary(){
+  const summaryContent = document.getElementById('summary-content');
+  const total = entries.length;
+  const counts = { good: 0, neutral: 0, bad: 0 };
+  entries.forEach(e => counts[e.outcome] = (counts[e.outcome] || 0) + 1);
+
+  let html = `<div class="summary-grid">
+    <div class="stat"><div class="num">${total}</div><div class="label">Total bakes</div></div>
+    <div class="stat"><div class="num" style="color:var(--good)">${counts.good}</div><div class="label">Good</div></div>
+    <div class="stat"><div class="num" style="color:var(--neutral)">${counts.neutral}</div><div class="label">Neutral</div></div>
+    <div class="stat"><div class="num" style="color:var(--bad)">${counts.bad}</div><div class="label">Bad</div></div>
+  </div>`;
+
+  if(total > 0){
+    const avgFor = (outcome, field) => {
+      const subset = entries.filter(e => e.outcome === outcome);
+      if(subset.length === 0) return null;
+      const sum = subset.reduce((acc, e) => acc + e[field], 0);
+      return sum / subset.length;
+    };
+    const fmt = (v) => v === null ? '—' : v.toFixed(1);
+
+    html += `<table class="avg-table">
+      <thead><tr><th>Outcome</th><th>Avg temp (°C)</th><th>Avg water (g)</th><th>Avg hours</th></tr></thead>
+      <tbody>
+        ${['good','neutral','bad'].map(o => `
+          <tr>
+            <td data-label="Outcome"><span class="badge ${o}">${outcomeLabels[o]}</span></td>
+            <td data-label="Avg temp (°C)">${fmt(avgFor(o, 'temperature'))}</td>
+            <td data-label="Avg water (g)">${fmt(avgFor(o, 'water'))}</td>
+            <td data-label="Avg hours">${fmt(avgFor(o, 'hours'))}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  summaryContent.innerHTML = html;
+}
+
+function renderChart(){
+  if(typeof Chart === 'undefined'){
+    const wrap = document.querySelector('.chart-wrap');
+    if(wrap) wrap.innerHTML = '<p class="empty-msg">Chart library failed to load (no internet connection?). Everything else still works.</p>';
+    return;
+  }
+  const ctx = document.getElementById('chart');
+  const colors = { good: '#2e7d32', neutral: '#616161', bad: '#c62828' };
+
+  const datasets = ['good','neutral','bad'].map(outcome => ({
+    label: outcomeLabels[outcome],
+    data: entries.filter(e => e.outcome === outcome).map(e => ({ x: e.temperature, y: e.hours })),
+    backgroundColor: colors[outcome],
+    pointRadius: 6,
+    pointHoverRadius: 8,
+  }));
+
+  if(chartInstance){
+    chartInstance.data.datasets = datasets;
+    chartInstance.update();
+    return;
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Temperature (°C)' } },
+        y: { title: { display: true, text: 'Fermentation hours' } },
+      },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x}°C, ${ctx.parsed.y}h`
+          }
+        }
+      }
+    }
+  });
+}
+
+// ----- Export CSV -----
+document.getElementById('export-btn').addEventListener('click', () => {
+  const header = ['Date','Temperature (C)','Water (g)','Fermentation hours','Outcome','Notes'];
+  const rows = entries.map(e => [e.date, e.temperature, e.water, e.hours, outcomeLabels[e.outcome], e.notes || '']);
+  const csvEscape = (val) => {
+    const s = String(val);
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sourdough-entries-${todayStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ----- Clear samples -----
+const clearSamplesBtn = document.getElementById('clear-samples-btn');
+function updateClearSamplesVisibility(){
+  clearSamplesBtn.style.display = localStorage.getItem(SAMPLE_FLAG_KEY) === 'true' ? 'inline-block' : 'none';
+}
+clearSamplesBtn.addEventListener('click', () => {
+  entries = entries.filter(e => !e.id.startsWith('s'));
+  saveEntries(entries);
+  localStorage.removeItem(SAMPLE_FLAG_KEY);
+  updateClearSamplesVisibility();
+  renderAll();
+});
+
+function renderAll(){
+  renderTable();
+  renderSummary();
+  renderChart();
+  updateClearSamplesVisibility();
+}
+
+renderAll();
+</script>
+</body>
+</html>
