@@ -220,6 +220,8 @@
 
 </div>
 
+<input type="file" id="row-photo-input" accept="image/*" capture="environment" style="display:none;">
+
 <div class="modal-backdrop" id="photo-modal">
   <div class="modal" style="max-width:90vw; background:transparent; box-shadow:none; padding:0;">
     <img id="photo-modal-img" style="max-width:100%; max-height:80vh; border-radius:10px; display:block; margin:0 auto;">
@@ -518,6 +520,30 @@ photoModal.addEventListener('click', (e) => {
   if(e.target === photoModal) closePhotoModal();
 });
 
+// ----- Row photo upload (add/change photo without full edit) -----
+const rowPhotoInput = document.getElementById('row-photo-input');
+let rowPhotoTargetId = null;
+function triggerRowPhotoUpload(id){
+  rowPhotoTargetId = id;
+  rowPhotoInput.value = '';
+  rowPhotoInput.click();
+}
+rowPhotoInput.addEventListener('change', async () => {
+  const file = rowPhotoInput.files[0];
+  const id = rowPhotoTargetId;
+  if(!file || !id) return;
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  try{
+    entry.photo = await resizeImage(file, 900, 0.72);
+    saveEntries(entries);
+    if(editingId === id) { currentPhotoData = entry.photo; showPhotoPreview(entry.photo); }
+    renderTable();
+  }catch(err){
+    alert('Could not read that photo. Please try another.');
+  }
+});
+
 // ----- Filter / sort -----
 const filterOutcomeSelect = document.getElementById('filter-outcome');
 const sortFieldSelect = document.getElementById('sort-field');
@@ -596,6 +622,7 @@ function renderTable(){
       <td data-label="Notes" class="notes-cell">${entry.notes ? escapeHtml(entry.notes) : '<span style="color:#b3aba2;">—</span>'}</td>
       <td data-label="Actions">
         <div class="row-actions">
+          <button class="btn secondary small" onclick="triggerRowPhotoUpload('${entry.id}')">${entry.photo ? '📷 Change' : '📷 Add photo'}</button>
           <button class="btn secondary small" onclick="startEdit('${entry.id}')">Edit</button>
           <button class="btn danger small" onclick="requestDelete('${entry.id}')">Delete</button>
         </div>
